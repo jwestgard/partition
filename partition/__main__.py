@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from .classes import FileSet
-from .exceptions import ConfigError
+from .exceptions import ConfigError, DuplicateFileError
 import argparse
 import os
 import sys
@@ -58,35 +58,68 @@ def check_args(args):
         raise ConfigError("Destination directory is not empty")
 
 
+def has_duplicates(mapping):
+    all_dest = dict()
+    for source, destination in mapping.items():
+        all_dest.setdefault(destination, []).append(source)
+    duplicates = [tuple(all_dest[d]) for d in all_dest if len(all_dest[d]) > 1]
+    if duplicates:
+        return duplicates
+    else:
+        return False
+
+
 def main():
 
     try:
+        print(f"\n==================")
+        print(f"|                |")
+        print(f"| Partition Tool |")
+        print(f"|                |")
+        print(f"==================\n")
+
         """ (1) Parse args """
         args = parse_args()
 
         """ (2) Validate the provided arguments """
         check_args(args)
+        print(f"Running with the following arguments:")
+        width = max([len(k) for k in args.__dict__])
+        for k in args.__dict__:
+            print(f"  {k:>{width}} : {getattr(args, k)}")
 
         """ (3) Create FileSet """
         fileset = FileSet.from_filesystem(args.source)
+        print(f"\nAnalyzing files: {len(fileset)} files, " + \
+              f"{round(fileset.bytes/2**30, 2)} GiB")
 
         """ (4) Create partition map """
+        print(f"Creating mapping to partitioned tree...")
         pattern = r"^([a-z]+?)-(\d+?)-\d+?\.\w+?$"
-        #fileset.partition_by(pattern)
+        mapping = fileset.partition_by(pattern, args.destination)
+
+        """ (5) Check for duplicate files """
+        duplicates = has_duplicates(mapping)
+        if duplicates:
+            raise DuplicateFileError(f"Duplicate filenames detected: {duplicates}")
+        else:
+            print("Destination paths are all confirmed to be unique...")
 
         """ (5) Move, copy, or print """
         if args.dryrun:
-            print("Displaying map but not moving files...")
+            print("\nThe files will be partitioned as follows:")
+            for n, (source, destination) in enumerate(mapping.items(), 1):
+                print(f"  {n}. {source} -> {destination}")
         elif args.copy:
             print("Copying files to desination and leaving originals in place...")
         else:
             print("Moving files to new location...")
 
         """ (6) Summarize results """
-        print("Summarizing what happened")
+        print("Partitioning complete.")
 
-    except Exception as msg:
-        print(f"ERROR: {msg}")
+    except Exception as err:
+        print(f"ERROR: {err}", file=sys.stderr)
         sys.exit(1)
 
 

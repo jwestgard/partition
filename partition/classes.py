@@ -25,9 +25,9 @@ class FileSet(UserDict):
         data = dict()
         for directory, subdirs, files in os.walk(root):
             for filename in files:
+                if filename.startswith("."):
+                    continue
                 filepath = os.path.join(directory, filename)
-                if filepath in data:
-                    raise Exception
                 bytes = os.path.getsize(filepath)
                 asset = Asset(filename, None, bytes)
                 data[filepath] = asset
@@ -40,12 +40,13 @@ class FileSet(UserDict):
     def __repr__(self):
         return f"<FileSet containing {len(self)} assets, {self.bytes} bytes>"
 
-    def partition_by(self, pattern):
-        for asset in self.values():
+    def partition_by(self, pattern, destination):
+        mapping = dict()
+        for path, asset in self.items():
             m = re.match(pattern, asset.filename)
             if m:
-                print(m.group(1), m.group(2), asset)
+                dest_dir = f"{m.group(1)}-{m.group(2)}"
             else:
-                print("No match", asset)
-
-
+                dest_dir = "extra"
+            mapping[path] = os.path.join(destination, dest_dir, asset.filename)
+        return mapping
