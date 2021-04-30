@@ -4,6 +4,7 @@ from .classes import FileSet
 from .exceptions import ConfigError, DuplicateFileError
 import argparse
 import os
+import shutil
 import sys
 
 
@@ -27,15 +28,11 @@ def parse_args():
         )
 
     parser.add_argument(
-        '-d', '--dryrun', 
-        help='Display resulting layout without moving files', 
-        action='store_true',
-        )
-
-    parser.add_argument(
-        '-c', '--copy', 
-        help='Copy files, leaving originals in place', 
-        action='store_true'
+        '-m', '--mode',
+        choices=['copy', 'move', 'dryrun'],
+        help='Dryrun, move, or copy files to destination', 
+        action='store',
+        default='dryrun'
         )
 
     parser.add_argument(
@@ -106,14 +103,17 @@ def main():
             print("Destination paths are all confirmed to be unique...")
 
         """ (5) Move, copy, or print """
-        if args.dryrun:
-            print("\nThe files will be partitioned as follows:")
-            for n, (source, destination) in enumerate(mapping.items(), 1):
-                print(f"  {n}. {source} -> {destination}")
-        elif args.copy:
-            print("Copying files to desination and leaving originals in place...")
-        else:
-            print("Moving files to new location...")
+        print(f"Partitioning files ({args.mode} mode)...")
+        for n, (source, destination) in enumerate(mapping.items(), 1):
+            print(f"  {n}. {source} -> {destination}")
+            if args.mode == 'dryrun':
+                continue
+            else:
+                os.makedirs(os.path.dirname(destination), exist_ok=True)
+                if args.mode == 'copy':
+                    shutil.copyfile(source, destination)
+                elif args.mode == 'move':
+                    shutil.move(source, destination)
 
         """ (6) Summarize results """
         print("Partitioning complete.")
